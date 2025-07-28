@@ -1,0 +1,25 @@
+{
+  "name": "@atomikjs/core",
+  "version": "0.1.0",
+  "description": "Core package for AtomikJS framework",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts --watch --format esm --dts"
+  },
+  "dependencies": {
+    "@atomikjs/http": "0.1.0",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "tsup": "^8.5.0"
+  },
+  "type": "module",
+  "license": "MIT"
+}
