@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@atomikjs/core": "^0.1.0",
-    "@atomikjs/http": "^0.1.0"
+    "@atomikjs/http": "^0.1.0",
+    "http": "^0.0.1-security"
   }
 }
