@@ -2,6 +2,7 @@ import * as http from 'http';
 import { IncomingMessage, ServerResponse } from 'http';
 import 'reflect-metadata';
 import { MiddlewareManager, MiddlewareFunction } from './middleware';
+import { DIContainer } from '@atomikjs/core';
 
 export class HttpServer {
   private server!: http.Server;
@@ -10,15 +11,16 @@ export class HttpServer {
   constructor(
     private port: number,
     private controllers: any[],
+    private container: DIContainer,
     private globalMiddlewares: MiddlewareFunction[] = [],
+    private logger: (...args: any[]) => void = console.log,
     private errorHandler?: (err: any, req: IncomingMessage, res: ServerResponse) => void
   ) {
-    this.globalMiddlewares = globalMiddlewares || [];
+    this.globalMiddlewares.forEach(mw => this.middlewareManager.use(mw));
     this.errorHandler = errorHandler || ((err, req, res) => {
       res.statusCode = 500;
       res.end(`Internal Server Error: ${err.message || err}`);
     });
-    this.globalMiddlewares.forEach(mw => this.middlewareManager.use(mw));
   }
 
   start() {
@@ -31,27 +33,60 @@ export class HttpServer {
       }
     });
     this.server.listen(this.port);
+    this.logger(`[AtomikJS] Server listening on port ${this.port}`);
+  }
+
+  private normalizePath(path: string): string {
+    return ('/' + path).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
   }
 
   private async handleRequest(req: IncomingMessage, res: ServerResponse) {
     const method = req.method || 'GET';
-    const url = req.url || '/';
+    let url = req.url || '/';
+
+    url = url.split('?')[0];
+    const normalizedUrl = this.normalizePath(url);
+
+    console.log(`[DEBUG] Incoming request: ${method} ${normalizedUrl}`);
 
     for (const ControllerClass of this.controllers) {
-      const basePath = Reflect.getMetadata('basePath', ControllerClass);
-      if (!basePath) continue;
+      const basePath: string = Reflect.getMetadata('basePath', ControllerClass);
+      if (!basePath) {
+        console.log(`[DEBUG] No basePath for controller ${ControllerClass.name}`);
+        continue;
+      }
 
-      if (url.startsWith(basePath)) {
+      const normalizedBasePath = this.normalizePath(basePath);
+      console.log(`[DEBUG] Checking controller ${ControllerClass.name} with basePath: ${normalizedBasePath}`);
+
+      if (normalizedUrl.startsWith(normalizedBasePath)) {
         const routes = Reflect.getMetadata('routes', ControllerClass) || [];
-        const relativePath = url.substring(basePath.length) || '/';
+        console.log(`[DEBUG] Found ${routes.length} routes for controller ${ControllerClass.name}`);
+
+        let relativePath = normalizedUrl.slice(normalizedBasePath.length);
+        if (!relativePath.startsWith('/')) {
+          relativePath = '/' + relativePath;
+        }
+        if (relativePath === '') {
+          relativePath = '/';
+        }
+
+        console.log(`[DEBUG] Relative path: ${relativePath}`);
 
         for (const route of routes) {
-          if (route.method === method && route.path === relativePath) {
-            const controllerInstance = new ControllerClass();
+          const normalizedRoutePath = this.normalizePath(route.path);
+          console.log(`[DEBUG] Comparing ${method} ${relativePath} with ${route.method} ${normalizedRoutePath}`);
 
-            const routeMiddlewares: MiddlewareFunction[] = Reflect.getMetadata('middlewares', ControllerClass.prototype, route.handlerName) || [];
+          if (route.method === method && relativePath === normalizedRoutePath) {
+            console.log(`[DEBUG] Route matched! Executing ${route.handlerName}`);
 
-            for (const mw of routeMiddlewares) {
+            type AnyController = { [key: string]: (...args: any[]) => any };
+            const controllerInstance = this.container.resolve(ControllerClass) as AnyController;
+            
+            const middlewares: MiddlewareFunction[] =
+              Reflect.getMetadata('middlewares', ControllerClass.prototype, route.handlerName) || [];
+
+            for (const mw of middlewares) {
               await mw(req, res, async () => {});
             }
 
@@ -74,6 +109,8 @@ export class HttpServer {
         }
       }
     }
+
+    console.log(`[DEBUG] No route found for ${method} ${normalizedUrl}`);
     res.statusCode = 404;
     res.end('Not Found');
   }
