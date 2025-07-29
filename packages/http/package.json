@@ -1,6 +1,6 @@
 {
   "name": "@atomikjs/http",
-  "version": "0.2.5",
+  "version": "0.2.7",
   "description": "HTTP module for AtomikJS framework",
   "main": "dist/index.js",
   "module": "dist/index.js",

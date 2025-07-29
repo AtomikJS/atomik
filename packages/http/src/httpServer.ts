@@ -1,7 +1,9 @@
 import * as http from 'http';
 import { IncomingMessage, ServerResponse } from 'http';
+import { parse } from 'url';
 import 'reflect-metadata';
 import { MiddlewareManager, MiddlewareFunction } from './middleware';
+import { ParamType } from './decorators/params';
 import { DIContainer } from '@atomikjs/core';
 
 interface HttpServerOptions {
@@ -51,6 +53,75 @@ export class HttpServer {
     return ('/' + path).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
   }
 
+  private matchRoute(routePath: string, requestPath: string) {
+    const routeParts = routePath.split('/').filter(Boolean);
+    const pathParts = requestPath.split('/').filter(Boolean);
+    if (routeParts.length !== pathParts.length) return null;
+
+    const params: Record<string, string> = {};
+
+    for (let i = 0; i < routeParts.length; i++) {
+      const routePart = routeParts[i];
+      const pathPart = pathParts[i];
+      if (routePart.startsWith(':')) {
+        params[routePart.slice(1)] = pathPart;
+      } else if (routePart !== pathPart) {
+        return null;
+      }
+    }
+
+    return params;
+  }
+
+  private async parseBody(req: IncomingMessage): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          resolve(JSON.parse(body || '{}'));
+        } catch (e) {
+          resolve({});
+        }
+      });
+      req.on('error', reject);
+    });
+  }
+
+  private async resolveHandlerParams(
+    prototype: any,
+    handlerName: string,
+    req: IncomingMessage,
+    res: ServerResponse,
+    params: Record<string, string>
+  ) {
+    const metadata = Reflect.getMetadata('params', prototype, handlerName) || [];
+    const query = new URL(req.url || '', `http://${req.headers.host}`).searchParams;
+    const body = await this.parseBody(req);
+
+    const args: any[] = [];
+    for (const { index, type, key } of metadata) {
+      switch (type) {
+        case ParamType.PARAM:
+          args[index] = params[key!] || null;
+          break;
+        case ParamType.QUERY:
+          args[index] = query.get(key!) || null;
+          break;
+        case ParamType.BODY:
+          args[index] = body;
+          break;
+        case ParamType.REQUEST:
+          args[index] = req;
+          break;
+        case ParamType.RESPONSE:
+          args[index] = res;
+          break;
+      }
+    }
+    return args;
+  }
+
   private async routeRequest(req: IncomingMessage, res: ServerResponse) {
     const method = req.method || 'GET';
     let url = req.url || '/';
@@ -71,8 +142,10 @@ export class HttpServer {
 
         for (const route of routes) {
           const normalizedRoutePath = this.normalizePath(route.path);
-          if (route.method === method && relativePath === normalizedRoutePath) {
+          const params = this.matchRoute(normalizedRoutePath, relativePath);
+          if (route.method === method && params) {
             const controllerInstance = this.options.container.resolve(ControllerClass) as any;
+
             const middlewares: MiddlewareFunction[] =
               Reflect.getMetadata('middlewares', ControllerClass.prototype, route.handlerName) || [];
 
@@ -80,7 +153,9 @@ export class HttpServer {
               await mw(req, res, async () => {});
             }
 
-            const result = await controllerInstance[route.handlerName](req, res);
+            const handler = controllerInstance[route.handlerName].bind(controllerInstance);
+            const args = await this.resolveHandlerParams(ControllerClass.prototype, route.handlerName, req, res, params);
+            const result = await handler(...args);
 
             if (!res.writableEnded) {
               res.statusCode = 200;
