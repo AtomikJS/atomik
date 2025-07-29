@@ -30,9 +30,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@atomikjs/core':
-        specifier: workspace:*
-        version: 'link:'
       '@atomikjs/http':
         specifier: 0.1.0
         version: 0.1.0
@@ -50,8 +47,8 @@ importers:
   packages/http:
     dependencies:
       '@atomikjs/core':
-        specifier: workspace:*
-        version: link:../core
+        specifier: '*'
+        version: 0.1.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

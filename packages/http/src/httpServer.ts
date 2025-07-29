@@ -4,85 +4,75 @@ import 'reflect-metadata';
 import { MiddlewareManager, MiddlewareFunction } from './middleware';
 import { DIContainer } from '@atomikjs/core';
 
+interface HttpServerOptions {
+  port: number;
+  controllers?: any[];
+  container: DIContainer;
+  globalMiddlewares?: MiddlewareFunction[];
+  logger?: (...args: any[]) => void;
+  onStart?: () => void;
+  onError?: (err: any, req: IncomingMessage, res: ServerResponse) => void;
+}
+
 export class HttpServer {
   private server!: http.Server;
   private middlewareManager = new MiddlewareManager();
 
-  constructor(
-    private port: number,
-    private controllers: any[],
-    private container: DIContainer,
-    private globalMiddlewares: MiddlewareFunction[] = [],
-    private logger: (...args: any[]) => void = console.log,
-    private errorHandler?: (err: any, req: IncomingMessage, res: ServerResponse) => void
-  ) {
-    this.globalMiddlewares.forEach(mw => this.middlewareManager.use(mw));
-    this.errorHandler = errorHandler || ((err, req, res) => {
-      res.statusCode = 500;
-      res.end(`Internal Server Error: ${err.message || err}`);
+  constructor(private options: HttpServerOptions) {
+    const { globalMiddlewares = [], logger = console.log } = options;
+    globalMiddlewares.forEach(mw => this.middlewareManager.use(mw));
+    this.options.logger = logger;
+  }
+
+  public async start() {
+    this.server = http.createServer(this.requestHandler.bind(this));
+    this.server.listen(this.options.port, () => {
+      this.options.logger?.(`[AtomikJS] Server listening on port ${this.options.port}`);
+      this.options.onStart?.();
     });
   }
 
-  start() {
-    this.server = http.createServer(async (req, res) => {
-      try {
-        await this.middlewareManager.execute(req, res);
-        await this.handleRequest(req, res);
-      } catch (err) {
-        this.errorHandler!(err, req, res);
+  private async requestHandler(req: IncomingMessage, res: ServerResponse) {
+    try {
+      await this.middlewareManager.execute(req, res);
+      await this.routeRequest(req, res);
+    } catch (err) {
+      if (this.options.onError) {
+        this.options.onError(err, req, res);
+      } else {
+        res.statusCode = 500;
+        const errorMessage = (typeof err === 'object' && err !== null && 'message' in err) ? (err as any).message : String(err);
+        res.end(`Internal Server Error: ${errorMessage}`);
       }
-    });
-    this.server.listen(this.port);
-    this.logger(`[AtomikJS] Server listening on port ${this.port}`);
+    }
   }
 
   private normalizePath(path: string): string {
     return ('/' + path).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
   }
 
-  private async handleRequest(req: IncomingMessage, res: ServerResponse) {
+  private async routeRequest(req: IncomingMessage, res: ServerResponse) {
     const method = req.method || 'GET';
     let url = req.url || '/';
 
     url = url.split('?')[0];
     const normalizedUrl = this.normalizePath(url);
 
-    console.log(`[DEBUG] Incoming request: ${method} ${normalizedUrl}`);
-
-    for (const ControllerClass of this.controllers) {
+    for (const ControllerClass of this.options.controllers || []) {
       const basePath: string = Reflect.getMetadata('basePath', ControllerClass);
-      if (!basePath) {
-        console.log(`[DEBUG] No basePath for controller ${ControllerClass.name}`);
-        continue;
-      }
+      if (!basePath) continue;
 
       const normalizedBasePath = this.normalizePath(basePath);
-      console.log(`[DEBUG] Checking controller ${ControllerClass.name} with basePath: ${normalizedBasePath}`);
 
       if (normalizedUrl.startsWith(normalizedBasePath)) {
         const routes = Reflect.getMetadata('routes', ControllerClass) || [];
-        console.log(`[DEBUG] Found ${routes.length} routes for controller ${ControllerClass.name}`);
-
-        let relativePath = normalizedUrl.slice(normalizedBasePath.length);
-        if (!relativePath.startsWith('/')) {
-          relativePath = '/' + relativePath;
-        }
-        if (relativePath === '') {
-          relativePath = '/';
-        }
-
-        console.log(`[DEBUG] Relative path: ${relativePath}`);
+        let relativePath = normalizedUrl.slice(normalizedBasePath.length) || '/';
+        if (!relativePath.startsWith('/')) relativePath = '/' + relativePath;
 
         for (const route of routes) {
           const normalizedRoutePath = this.normalizePath(route.path);
-          console.log(`[DEBUG] Comparing ${method} ${relativePath} with ${route.method} ${normalizedRoutePath}`);
-
           if (route.method === method && relativePath === normalizedRoutePath) {
-            console.log(`[DEBUG] Route matched! Executing ${route.handlerName}`);
-
-            type AnyController = { [key: string]: (...args: any[]) => any };
-            const controllerInstance = this.container.resolve(ControllerClass) as AnyController;
-            
+            const controllerInstance = this.options.container.resolve(ControllerClass) as any;
             const middlewares: MiddlewareFunction[] =
               Reflect.getMetadata('middlewares', ControllerClass.prototype, route.handlerName) || [];
 
@@ -97,11 +87,9 @@ export class HttpServer {
               if (typeof result === 'object') {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(result));
-              } else if (typeof result === 'string') {
-                res.setHeader('Content-Type', 'text/plain');
-                res.end(result);
               } else {
-                res.end();
+                res.setHeader('Content-Type', 'text/plain');
+                res.end(result?.toString() || '');
               }
             }
             return;
@@ -110,12 +98,11 @@ export class HttpServer {
       }
     }
 
-    console.log(`[DEBUG] No route found for ${method} ${normalizedUrl}`);
     res.statusCode = 404;
     res.end('Not Found');
   }
 
-  use(mw: MiddlewareFunction) {
-    this.middlewareManager.use(mw);
+  public use(middleware: MiddlewareFunction) {
+    this.middlewareManager.use(middleware);
   }
 }
