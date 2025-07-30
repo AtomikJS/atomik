@@ -1,6 +1,10 @@
 import { IncomingMessage, ServerResponse } from 'http';
 
-export type MiddlewareFunction = (req: IncomingMessage, res: ServerResponse, next: () => Promise<void>) => Promise<void>;
+export type MiddlewareFunction = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  next: () => Promise<void>
+) => Promise<void>;
 
 export class MiddlewareManager {
   private middlewares: MiddlewareFunction[] = [];

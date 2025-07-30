@@ -1,14 +1,14 @@
 import 'reflect-metadata';
 
-export class Container {
-  private instances = new Map<any, any>();
-  private providers = new Map<any, any>();
+export class DIContainer {
+  public instances = new Map<any, any>();
+  public providers = new Map<any, any>();
 
   register<T>(token: any, provider: { useClass: new (...args: any[]) => T }) {
     this.providers.set(token, provider.useClass);
   }
 
-  resolve<T>(token: any): T {
+  resolve<T>(token: new (...args: any[]) => T): T {
     if (this.instances.has(token)) return this.instances.get(token);
     const TargetClass = this.providers.get(token);
     if (!TargetClass) throw new Error(`No provider found for ${token.toString()}`);
@@ -20,3 +20,5 @@ export class Container {
     return instance;
   }
 }
+
+export const Container = new DIContainer();

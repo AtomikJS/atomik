@@ -1,17 +1,5 @@
 import 'reflect-metadata';
 
-export function Controller(basePath: string): ClassDecorator {
-  return target => {
-    Reflect.defineMetadata('basePath', basePath, target);
-  };
-}
-
-export function Service(): ClassDecorator {
-  return target => {
-    Reflect.defineMetadata('service', true, target);
-  };
-}
-
 function createRouteDecorator(method: string) {
   return (path: string): MethodDecorator => {
     return (target, propertyKey) => {

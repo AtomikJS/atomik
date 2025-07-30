@@ -1,4 +1,5 @@
-import { MiddlewareFunction } from './middleware';
+import 'reflect-metadata';
+import { MiddlewareFunction } from '../middleware';
 
 export function UseMiddleware(...middlewares: MiddlewareFunction[]) {
   return function (target: any, propertyKey?: string | symbol) {
