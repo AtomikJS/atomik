@@ -1,10 +1,10 @@
 import * as http from 'http';
 import { IncomingMessage, ServerResponse } from 'http';
-import { parse } from 'url';
 import 'reflect-metadata';
 import { MiddlewareManager, MiddlewareFunction } from './middleware';
 import { ParamType } from './decorators/params';
 import { DIContainer } from '@atomikjs/core';
+import { runGates, runForges } from '@atomikjs/runtime'; // <-- import ajoutés
 
 interface HttpServerOptions {
   port: number;
@@ -146,15 +146,37 @@ export class HttpServer {
           if (route.method === method && params) {
             const controllerInstance = this.options.container.resolve(ControllerClass) as any;
 
-            const middlewares: MiddlewareFunction[] =
-              Reflect.getMetadata('middlewares', ControllerClass.prototype, route.handlerName) || [];
+            const frame = {
+              req,
+              res,
+              handlerName: route.handlerName,
+              className: ControllerClass.name,
+            };
 
-            for (const mw of middlewares) {
-              await mw(req, res, async () => {});
+            const gatesPassed = await runGates(controllerInstance, route.handlerName, frame);
+            if (!gatesPassed) {
+              res.statusCode = 403;
+              res.end('Forbidden');
+              return;
+            }
+
+            let args = await this.resolveHandlerParams(ControllerClass.prototype, route.handlerName, req, res, params);
+
+            const metadata = Reflect.getMetadata('params', ControllerClass.prototype, route.handlerName) || [];
+            const bodyParamIndex = metadata.find((param: { type: ParamType; index: number; key?: string }) => param.type === ParamType.BODY)?.index;
+
+            if (bodyParamIndex !== undefined) {
+              try {
+                const forged = await runForges(controllerInstance, route.handlerName, args[bodyParamIndex]);
+                args[bodyParamIndex] = forged;
+              } catch (err: any) {
+                res.statusCode = 400;
+                res.end(`Bad Request: ${err.message || err}`);
+                return;
+              }
             }
 
             const handler = controllerInstance[route.handlerName].bind(controllerInstance);
-            const args = await this.resolveHandlerParams(ControllerClass.prototype, route.handlerName, req, res, params);
             const result = await handler(...args);
 
             if (!res.writableEnded) {
