@@ -50,8 +50,8 @@ importers:
         specifier: '*'
         version: 0.1.0
       '@atomikjs/runtime':
-        specifier: '*'
-        version: 0.1.1
+        specifier: 0.1.5
+        version: 0.1.5
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -87,8 +87,8 @@ packages:
   '@atomikjs/http@0.1.0':
     resolution: {integrity: sha512-/osPf6YFfp03wg1fVq1G3uJEusyFtNZ0iUJBdoDL936Va4/AVS3hf5gAzeOUTndliSMGq7n8frgTsuThZtij7w==}
 
-  '@atomikjs/runtime@0.1.1':
-    resolution: {integrity: sha512-GQ31NZ06lPBs3eM/xKXA8LtY2jxq9KfxEkqfql31eKSlaWIeuBaJeIIDLdlkOeEQIaZTeOF7vzBx5dQraTYCeQ==}
+  '@atomikjs/runtime@0.1.5':
+    resolution: {integrity: sha512-KCccj8pAbOtyMa+CsbV3H8rgICxSH/DBypOT9SxYWVidREzQUgwWco4zoZnBmb/PHvVfTJLZ1WaePJPXjL/awA==}
 
   '@esbuild/aix-ppc64@0.25.8':
     resolution: {integrity: sha512-urAvrUedIqEiFR3FYSLTWQgLu5tb+m0qZw0NBEasUeo6wuqatkMDaRT+1uABiGXEu5vqgPd7FGE1BhsAIy9QVA==}
@@ -731,7 +731,7 @@ snapshots:
     dependencies:
       reflect-metadata: 0.2.2
 
-  '@atomikjs/runtime@0.1.1':
+  '@atomikjs/runtime@0.1.5':
     dependencies:
       '@atomikjs/core': 0.1.0
       reflect-metadata: 0.2.2

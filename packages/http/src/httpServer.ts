@@ -4,7 +4,7 @@ import 'reflect-metadata';
 import { MiddlewareManager, MiddlewareFunction } from './middleware';
 import { ParamType } from './decorators/params';
 import { DIContainer } from '@atomikjs/core';
-import { runGates, runForges } from '@atomikjs/runtime'; // <-- import ajoutés
+import { runGates, runForges, runShields, runWraps, WRAP_METADATA, SHIELD_METADATA } from '@atomikjs/runtime';
 
 interface HttpServerOptions {
   port: number;
@@ -177,18 +177,33 @@ export class HttpServer {
             }
 
             const handler = controllerInstance[route.handlerName].bind(controllerInstance);
-            const result = await handler(...args);
 
-            if (!res.writableEnded) {
-              res.statusCode = 200;
-              if (typeof result === 'object') {
+              try {
+              const wraps = Reflect.getMetadata(WRAP_METADATA, ControllerClass.prototype, route.handlerName) || [];
+
+              const result = await runWraps(wraps, this.options.container, frame, () => handler(...args));
+
+              if (!res.writableEnded) {
+                res.statusCode = 200;
+                if (typeof result === 'object') {
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(result));
-              } else {
+                } else {
                 res.setHeader('Content-Type', 'text/plain');
                 res.end(result?.toString() || '');
+                }
               }
-            }
+              } catch (err: any) {
+              const shields = Reflect.getMetadata(SHIELD_METADATA, ControllerClass.prototype, route.handlerName) || [];
+              this.options.logger?.(`[DEBUG] Shields found:`, shields);
+              if (shields.length > 0) {
+                await runShields(shields, this.options.container, frame, err);
+              } else {
+                res.statusCode = 500;
+                res.end(`Internal Server Error: ${err.message || err}`);
+              }
+              return;
+              }
             return;
           }
         }

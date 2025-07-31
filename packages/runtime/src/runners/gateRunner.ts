@@ -1,6 +1,7 @@
 import { Container } from '@atomikjs/core';
-import { CanPass, RequestFrame } from '../contracts/canPass';
+import { CanPass } from '../contracts/canPass';
 import { GATE_METADATA } from '../decorators/gate';
+import { RequestFrame } from '../contracts/types';
 
 export async function runGates(
   instance: any,

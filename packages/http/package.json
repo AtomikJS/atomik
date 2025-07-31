@@ -1,6 +1,6 @@
 {
   "name": "@atomikjs/http",
-  "version": "0.2.8",
+  "version": "0.2.12",
   "description": "HTTP module for AtomikJS framework",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -15,7 +15,7 @@
   "dependencies": {
     "reflect-metadata": "^0.2.2",
     "@atomikjs/core": "*",
-    "@atomikjs/runtime": "*"
+    "@atomikjs/runtime": "0.1.5"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
