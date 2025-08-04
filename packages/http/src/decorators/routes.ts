@@ -2,10 +2,11 @@ import 'reflect-metadata';
 
 function createRouteDecorator(method: string) {
   return (path: string): MethodDecorator => {
-    return (target, propertyKey) => {
+    return (target, propertyKey, descriptor) => {
       const routes = Reflect.getMetadata('routes', target.constructor) || [];
       routes.push({ method, path, handlerName: propertyKey });
       Reflect.defineMetadata('routes', routes, target.constructor);
+      return descriptor;
     };
   };
 }
