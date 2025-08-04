@@ -14,3 +14,6 @@ export const Get = createRouteDecorator('GET');
 export const Post = createRouteDecorator('POST');
 export const Put = createRouteDecorator('PUT');
 export const Delete = createRouteDecorator('DELETE');
+export const Patch = createRouteDecorator('PATCH');
+export const Options = createRouteDecorator('OPTIONS');
+export const Head = createRouteDecorator('HEAD');

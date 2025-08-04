@@ -1,10 +1,11 @@
 import * as http from 'http';
 import { IncomingMessage, ServerResponse } from 'http';
-import { parse } from 'url';
 import 'reflect-metadata';
 import { MiddlewareManager, MiddlewareFunction } from './middleware';
 import { ParamType } from './decorators/params';
 import { DIContainer } from '@atomikjs/core';
+import { runGates, runForges, runShields, runWraps, WRAP_METADATA, SHIELD_METADATA } from '@atomikjs/runtime';
+import { HttpResponseFormatter } from './utils/httpResponseFormatter';
 
 interface HttpServerOptions {
   port: number;
@@ -14,6 +15,12 @@ interface HttpServerOptions {
   logger?: (...args: any[]) => void;
   onStart?: () => void;
   onError?: (err: any, req: IncomingMessage, res: ServerResponse) => void;
+  messages?: {
+    notFound?: string;
+    forbidden?: string;
+    badRequest?: string;
+    internalError?: string;
+  };
 }
 
 export class HttpServer {
@@ -29,7 +36,6 @@ export class HttpServer {
   public async start() {
     this.server = http.createServer(this.requestHandler.bind(this));
     this.server.listen(this.options.port, () => {
-      this.options.logger?.(`[AtomikJS] Server listening on port ${this.options.port}`);
       this.options.onStart?.();
     });
   }
@@ -43,8 +49,9 @@ export class HttpServer {
         this.options.onError(err, req, res);
       } else {
         res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
         const errorMessage = (typeof err === 'object' && err !== null && 'message' in err) ? (err as any).message : String(err);
-        res.end(`Internal Server Error: ${errorMessage}`);
+        res.end(JSON.stringify(HttpResponseFormatter.error(`Internal Server Error: ${errorMessage}`, 500)));
       }
     }
   }
@@ -135,7 +142,10 @@ export class HttpServer {
 
       const normalizedBasePath = this.normalizePath(basePath);
 
-      if (normalizedUrl.startsWith(normalizedBasePath)) {
+      if (
+        normalizedUrl === normalizedBasePath || 
+        normalizedUrl.startsWith(normalizedBasePath + '/')
+      ) {
         const routes = Reflect.getMetadata('routes', ControllerClass) || [];
         let relativePath = normalizedUrl.slice(normalizedBasePath.length) || '/';
         if (!relativePath.startsWith('/')) relativePath = '/' + relativePath;
@@ -146,27 +156,85 @@ export class HttpServer {
           if (route.method === method && params) {
             const controllerInstance = this.options.container.resolve(ControllerClass) as any;
 
-            const middlewares: MiddlewareFunction[] =
-              Reflect.getMetadata('middlewares', ControllerClass.prototype, route.handlerName) || [];
+            const frame = {
+              req,
+              res,
+              handlerName: route.handlerName,
+              className: ControllerClass.name,
+            };
 
-            for (const mw of middlewares) {
-              await mw(req, res, async () => {});
+            const gatesPassed = await runGates(controllerInstance, route.handlerName, frame);
+            if (!gatesPassed) {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(HttpResponseFormatter.error(this.options.messages?.forbidden || 'Forbidden', 403)));
+              return;
+            }
+
+            let args = await this.resolveHandlerParams(ControllerClass.prototype, route.handlerName, req, res, params);
+
+            const metadata = Reflect.getMetadata('params', ControllerClass.prototype, route.handlerName) || [];
+            const bodyParamIndex = metadata.find((param: { type: ParamType; index: number; key?: string }) => param.type === ParamType.BODY)?.index;
+
+            if (bodyParamIndex !== undefined) {
+              try {
+                const forged = await runForges(controllerInstance, route.handlerName, args[bodyParamIndex]);
+                args[bodyParamIndex] = forged;
+              } catch (err: any) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(HttpResponseFormatter.error(`Bad Request: ${err.message || err}`, 400)));
+                return;
+              }
             }
 
             const handler = controllerInstance[route.handlerName].bind(controllerInstance);
-            const args = await this.resolveHandlerParams(ControllerClass.prototype, route.handlerName, req, res, params);
-            const result = await handler(...args);
 
-            if (!res.writableEnded) {
-              res.statusCode = 200;
-              if (typeof result === 'object') {
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(result));
-              } else {
-                res.setHeader('Content-Type', 'text/plain');
-                res.end(result?.toString() || '');
+              try {
+                const wraps = Reflect.getMetadata(WRAP_METADATA, ControllerClass.prototype, route.handlerName) || [];
+
+                const result = await runWraps(wraps, this.options.container, frame, () => handler(...args));
+
+                if (!res.writableEnded) {
+                  res.statusCode = 200;
+                  if (typeof result === 'object') {
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify(result));
+                  } else {
+                  res.setHeader('Content-Type', 'text/plain');
+                  res.end(result?.toString() || '');
+                  }
+                }
+              } catch (err: any) {
+                let errorHandled = false;
+                
+                const shields = Reflect.getMetadata(SHIELD_METADATA, ControllerClass.prototype, route.handlerName) || [];
+                if (shields.length > 0) {
+                  try {
+                    errorHandled = await runShields(shields, this.options.container, frame, err);
+                  } catch (shieldSystemError) {
+                    errorHandled = false;
+                  }
+                }
+
+                if (!errorHandled && !res.writableEnded) {
+                  try {
+                    res.statusCode = 500;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify(HttpResponseFormatter.error(`Internal Server Error: ${err.message || err}`, 500)));
+                  } catch (responseError) {
+                    console.error('[AtomikJS] Failed to send error response:', responseError);
+                    try {
+                      if (!res.writableEnded) {
+                        res.end('Internal Server Error');
+                      }
+                    } catch (lastResortError) {
+                      console.error('[AtomikJS] Complete response failure:', lastResortError);
+                    }
+                  }
+                }
+                return;
               }
-            }
             return;
           }
         }
@@ -174,7 +242,8 @@ export class HttpServer {
     }
 
     res.statusCode = 404;
-    res.end('Not Found');
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(HttpResponseFormatter.error(this.options.messages?.notFound || 'Not Found', 404)));
   }
 
   public use(middleware: MiddlewareFunction) {

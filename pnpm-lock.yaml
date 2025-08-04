@@ -49,6 +49,25 @@ importers:
       '@atomikjs/core':
         specifier: '*'
         version: 0.1.0
+      '@atomikjs/runtime':
+        specifier: 0.1.5
+        version: 0.1.5
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+    devDependencies:
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.0(typescript@5.8.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+
+  packages/runtime:
+    dependencies:
+      '@atomikjs/core':
+        specifier: '*'
+        version: 0.1.0
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -67,6 +86,9 @@ packages:
 
   '@atomikjs/http@0.1.0':
     resolution: {integrity: sha512-/osPf6YFfp03wg1fVq1G3uJEusyFtNZ0iUJBdoDL936Va4/AVS3hf5gAzeOUTndliSMGq7n8frgTsuThZtij7w==}
+
+  '@atomikjs/runtime@0.1.5':
+    resolution: {integrity: sha512-KCccj8pAbOtyMa+CsbV3H8rgICxSH/DBypOT9SxYWVidREzQUgwWco4zoZnBmb/PHvVfTJLZ1WaePJPXjL/awA==}
 
   '@esbuild/aix-ppc64@0.25.8':
     resolution: {integrity: sha512-urAvrUedIqEiFR3FYSLTWQgLu5tb+m0qZw0NBEasUeo6wuqatkMDaRT+1uABiGXEu5vqgPd7FGE1BhsAIy9QVA==}
@@ -707,6 +729,11 @@ snapshots:
 
   '@atomikjs/http@0.1.0':
     dependencies:
+      reflect-metadata: 0.2.2
+
+  '@atomikjs/runtime@0.1.5':
+    dependencies:
+      '@atomikjs/core': 0.1.0
       reflect-metadata: 0.2.2
 
   '@esbuild/aix-ppc64@0.25.8':
