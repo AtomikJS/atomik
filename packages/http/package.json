@@ -1,6 +1,6 @@
 {
   "name": "@atomikjs/http",
-  "version": "0.2.17",
+  "version": "0.2.20",
   "description": "HTTP module for AtomikJS framework",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -13,7 +13,7 @@
     "dev": "tsup src/index.ts --watch --format esm --dts"
   },
   "dependencies": {
-    "@atomikjs/core": "*",
+    "@atomikjs/core": "0.2.9",
     "@atomikjs/runtime": "0.1.5",
     "chalk": "^5.5.0",
     "reflect-metadata": "^0.2.2"

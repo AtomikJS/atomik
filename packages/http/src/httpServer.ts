@@ -66,6 +66,7 @@ export class HttpServer {
   private printBannerAndRoutes(routes: Array<{ method: string, path: string, timeMs: number }>) {
     const appVersion = getAppVersion();
 
+    console.clear();
     console.log(chalk.cyanBright('\n╔══════════════════════════════════════════════╗'));
     console.log(chalk.cyanBright(`║            🚀 ATOMIKJS HTTP SERVER           ║`));
     console.log(chalk.cyanBright('╠══════════════════════════════════════════════╣'));

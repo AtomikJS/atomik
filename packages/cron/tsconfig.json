@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@atomikjs/core": ["../core/dist/index.d.ts"]
+    }
+  },
+  "include": ["src"]
+}
