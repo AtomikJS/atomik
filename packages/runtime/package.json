@@ -1,6 +1,6 @@
 {
   "name": "@atomikjs/runtime",
-  "version": "0.1.5",
+  "version": "0.1.7",
   "description": "Runtime module for AtomikJS framework",
   "main": "dist/index.js",
   "module": "dist/index.js",
