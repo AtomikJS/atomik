@@ -6,6 +6,8 @@ import { ParamType } from './decorators/params';
 import { DIContainer } from '@atomikjs/core';
 import { runGates, runForges, runShields, runWraps, WRAP_METADATA, SHIELD_METADATA } from '@atomikjs/runtime';
 import { HttpResponseFormatter } from './utils/httpResponseFormatter';
+import chalk from 'chalk';
+import { getAppVersion } from './utils/getAppVersion';
 
 interface HttpServerOptions {
   port: number;
@@ -34,10 +36,49 @@ export class HttpServer {
   }
 
   public async start() {
+    const { port, controllers = [] } = this.options;
+    const routeLogs: Array<{ method: string, path: string, timeMs: number }> = [];
+
+    for (const ControllerClass of controllers) {
+      const basePath: string = Reflect.getMetadata('basePath', ControllerClass);
+      const routes = Reflect.getMetadata('routes', ControllerClass) || [];
+
+      for (const route of routes) {
+        const fullPath = this.normalizePath(basePath + route.path);
+        const method = (route.method || 'GET').toUpperCase();
+
+        const start = performance.now();
+        this.options.container.resolve(ControllerClass);
+        const end = performance.now();
+
+        routeLogs.push({ method, path: fullPath, timeMs: end - start });
+      }
+    }
+
+    this.printBannerAndRoutes(routeLogs);
+
     this.server = http.createServer(this.requestHandler.bind(this));
-    this.server.listen(this.options.port, () => {
+    this.server.listen(port, () => {
       this.options.onStart?.();
     });
+  }
+
+  private printBannerAndRoutes(routes: Array<{ method: string, path: string, timeMs: number }>) {
+    const appVersion = getAppVersion();
+
+    console.clear();
+    console.log(chalk.cyanBright('\n╔══════════════════════════════════════════════╗'));
+    console.log(chalk.cyanBright(`║            🚀 ATOMIKJS HTTP SERVER           ║`));
+    console.log(chalk.cyanBright('╠══════════════════════════════════════════════╣'));
+    console.log(chalk.cyanBright(`║ App Version: ${appVersion.padEnd(32)}║`));
+    console.log(chalk.cyanBright(`║ Docs       : https://atomikjs.dev            ║`));
+    console.log(chalk.cyanBright('╚══════════════════════════════════════════════╝\n'));
+
+    console.log(chalk.magentaBright('📡 Registered Endpoints:\n'));
+    routes.forEach(r => {
+      console.log(`  ${chalk.green(r.method.padEnd(6))} ${chalk.cyan(r.path)} ${chalk.gray(`(${r.timeMs.toFixed(2)} ms)`)} `);
+    });
+    console.log();
   }
 
   private async requestHandler(req: IncomingMessage, res: ServerResponse) {

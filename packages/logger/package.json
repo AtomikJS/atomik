@@ -1,7 +1,7 @@
 {
-  "name": "@atomikjs/core",
-  "version": "0.2.10",
-  "description": "Core package for AtomikJS framework",
+  "name": "@atomikjs/logger",
+  "version": "0.1.3",
+  "description": "Logging module for AtomikJS framework",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,8 +13,11 @@
     "dev": "tsup src/index.ts --watch --format esm --dts"
   },
   "dependencies": {
-    "@atomikjs/cron": "^0.1.4",
-    "reflect-metadata": "^0.2.2"
+    "@atomikjs/core": "*",
+    "@atomikjs/http": "^0.2.17",
+    "chalk": "^5.5.0",
+    "reflect-metadata": "^0.2.2",
+    "ssh2": "^1.16.0"
   },
   "devDependencies": {
     "@types/ssh2": "^1.15.5",
